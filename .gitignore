@@ -1,0 +1,5 @@
+dockerfile
+bin
+.dockerignore
+program.cs
+.env
