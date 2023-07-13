@@ -1,5 +1,6 @@
 dockerfile
 bin
 .dockerignore
-program.cs
 .env
+examples.cs
+data

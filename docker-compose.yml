@@ -1,22 +1,27 @@
-## creamos una imagen de docker compose que contenga sql server
-## se crea la imagen del editor visual
-version: '3.7'
+version: '3'
 services:
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2019-latest
-    container_name: mssql
+  db:
+    image: mariadb
+    restart: always
     environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=Password123
-    ports:
-      - 1433:1433
+      MYSQL_ROOT_PASSWORD: mysecretpassword
+      MYSQL_DATABASE: mydatabase
+      MYSQL_USER: myuser
+      MYSQL_PASSWORD: mypassword
     volumes:
-      - ./data:/var/opt/mssql/data
-      - ./backup:/var/opt/mssql/backup
-    restart: always
-  adminer:
-    image: adminer
-    container_name: adminer
-    restart: always
+      - db_data:/var/lib/mysql
     ports:
-      - 8080:8080
+      - 3306:3306
+  # corremos el contenedor de phpmyadmin
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: mysecretpassword
+    ports:
+      - 8080:80
+    depends_on:
+      - db
+volumes:
+  db_data:
