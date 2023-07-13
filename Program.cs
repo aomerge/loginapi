@@ -284,7 +284,7 @@ var builder = WebApplication.CreateBuilder(args);
 * 4. Generar el token
 * 5. Devolver el token
 */
-    app.MapPost("/login", async (HttpContext http) =>
+    app.MapPost("/login", async (HttpContext http, modelContext dbcontext) =>
     {
         try
         {
@@ -292,35 +292,60 @@ var builder = WebApplication.CreateBuilder(args);
                 var formCollection = await http.Request.ReadFormAsync();
                 string? Name = formCollection["name"];
                 string? Password = formCollection["password"];
+                // --
             // Comprobar si el usuario o la contraseña están vacíos
                 if( string.IsNullOrEmpty(Name) || string.IsNullOrEmpty(Password))
                 {
-                    await Results.BadRequest("El usuario o la contraseña no pueden estar vacíos").ExecuteAsync(http);
-                    return;    
+                        http.Response.StatusCode = StatusCodes.Status409Conflict;
+                        await http.Response.WriteAsync($"El usuario no existe");
+                        return; 
                 }
-            // encriptamos la contraseña
-                string? hash = BCryptNet.HashPassword(Password);
-
-            // generar el token con el nombre y el password
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var tokenDescriptor = new SecurityTokenDescriptor
+                // --
+            // comprovamos que el usuario no exista
+                var user = dbcontext?.Users?.FirstOrDefault(x => x.Email == Name || x.user_handle == Name);
+                if (user == null)
                 {
-                    Subject = new ClaimsIdentity(new Claim[]
-                    {
-                        new Claim(ClaimTypes.Name, Name),
-                        new Claim(ClaimTypes.Hash, hash),
-                        new Claim(ClaimTypes.Role, "Admin")
-                    }),
-                    Expires = DateTime.UtcNow.AddDays(30),
-                    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-                };
-                var token = tokenHandler.CreateToken(tokenDescriptor);
+                        http.Response.StatusCode = StatusCodes.Status409Conflict;
+                        await http.Response.WriteAsync($"El usuario no existe");
+                        return;
+                }
+                var verification = dbcontext?.VerificationUsers?.FirstOrDefault(x => x.UserId == user.Id_user);
+                if (verification?.Verified == false)
+                {
+                        http.Response.StatusCode = StatusCodes.Status409Conflict;
+                        await http.Response.WriteAsync($"El usuario no se encuentra verificado");
+                        return;
+                }
+            // comprovamos que la contraseña sea correcta                
+                bool passwordMatches = BCryptNet.Verify(Password, user.Password);
 
-                var tokenString = tokenHandler.WriteToken(token);
+                if (passwordMatches)
+                {            
+                    // generar el token con el nombre y el password
+                        var tokenHandler = new JwtSecurityTokenHandler();
+                        var tokenDescriptor = new SecurityTokenDescriptor
+                        {
+                            Subject = new ClaimsIdentity(new Claim[]
+                            {
+                                new Claim(ClaimTypes.Name, Name),                        
+                                new Claim(ClaimTypes.Role, "Admin")
+                            }),
+                            Expires = DateTime.UtcNow.AddDays(30),
+                            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                        };
+                        var token = tokenHandler.CreateToken(tokenDescriptor);
 
-            // status code 200
-                http.Response.StatusCode = 200;
-                await http.Response.WriteAsync(tokenString);
+                        var tokenString = tokenHandler.WriteToken(token);
+                    // status code 200
+                        http.Response.StatusCode = 200;
+                        await http.Response.WriteAsync(tokenString);
+                }
+                else
+                {
+                        await Results.Conflict($"Password incorrecto").ExecuteAsync(http);
+                        return;
+                }
+                // --
         }catch
         {
             // bad request
