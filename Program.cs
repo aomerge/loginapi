@@ -327,7 +327,7 @@ var builder = WebApplication.CreateBuilder(args);
                         {
                             Subject = new ClaimsIdentity(new Claim[]
                             {
-                                new Claim(ClaimTypes.Name, Name),                        
+                                new Claim(ClaimTypes.NameIdentifier, Name),                        
                                 new Claim(ClaimTypes.Role, "Admin")
                             }),
                             Expires = DateTime.UtcNow.AddDays(30),
@@ -357,9 +357,9 @@ var builder = WebApplication.CreateBuilder(args);
 /* Ruta para obtener el usuario  
 * 1. Recoger el token
 * 2. Comprobar si el token es válido
-* 3. Devolver el token desencriptado
+* 3. Devolver los datos del usuario en formato JSON
 */
-    app.MapGet("/user", async (HttpContext http) =>
+    app.MapGet("/user", async (HttpContext http, modelContext dbContext) =>
     {
         try
         {
@@ -377,14 +377,42 @@ var builder = WebApplication.CreateBuilder(args);
                 }, out var validatedToken);
                 var ab= tokenHandler.ReadToken(token);
 
-                http.Response.StatusCode = 200;
-            // Devuelve el token desencriptado
-                await http.Response.WriteAsync(tokenHandler.ReadJwtToken(token).ToString());
+            // Verificar el token
+                var jwtToken = tokenHandler.ReadJwtToken(token);
+                var jsonPayload = jwtToken.Payload.SerializeToJson();
+                // --
+            // Puedes deserializar el objeto JSON en un diccionario o en una clase personalizada
+                var payloadDictionary = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jsonPayload);
+
+            // Acceder a los valores del token
+                string? email = payloadDictionary?["nameid"].ToString();
+            // Comprobar si el token es válido
+                if (jwtToken.ValidTo < DateTime.UtcNow)
+                {
+                    throw new Exception("El token ha expirado");
+                }
+                // --         
+            // Devolver los datos del usuario en formato JSON
+                User? user = dbContext?.Users?.FirstOrDefault(x => x.Email == email);
+                if (user == null)
+                {
+                        http.Response.StatusCode = StatusCodes.Status409Conflict;
+                        await http.Response.WriteAsync($"El usuario no existe");
+                        return;
+                }
+                var response = new {
+                    id = user.Id_user,
+                    Email = user.Email,
+                    Name = user.Username,
+                    UserHandle = user.user_handle                    
+                };
+            // Devuelve los datos del usuario en formato JSON                
+                await Results.Ok(response).ExecuteAsync(http);
         }
-        catch
+        catch(Exception e)
         {
             http.Response.StatusCode = 401;
-            await http.Response.WriteAsync("Token inválido");
+            await http.Response.WriteAsync($"Token inválido{e.Message}");
         }
     });
 
@@ -401,7 +429,7 @@ var builder = WebApplication.CreateBuilder(args);
                 if (user == null)
                 {
                         http.Response.StatusCode = StatusCodes.Status409Conflict;
-                        await http.Response.WriteAsync($"El usuario no existe");
+                        await http.Response.WriteAsync($"Inserte un usuario válido");
                         return;
                 }
                 // --
@@ -409,6 +437,10 @@ var builder = WebApplication.CreateBuilder(args);
                 var linkGenerator = new VerificationLinkGenerator();
                 string verificationLink = linkGenerator.GenerateVerificationLink(user.Username, user.Email, user.user_handle, user.Password );
             // --
+            // Enviar el correo electrónico de verificación
+                        var emailService = new EmailService();
+                        emailService.SendVerificationEmail(user.Email, verificationLink);
+                    // --
             // Devolver una respuesta exitosa
                 await Results.Ok($"Enviamos un correo electrónico de recuperación de contraseña a su dirección de correo electrónico. Por favor, verifique su cuenta para iniciar sesión.").ExecuteAsync(http);
                 // --
@@ -427,7 +459,68 @@ var builder = WebApplication.CreateBuilder(args);
 * 2. Comprobar si la contraseña es correcta
 * 3. Comprovar si la contraseña antigua es correcta
 */
-    app.MapPost("/resent", ()=>{
+    app.MapPost("/resent", async (modelContext dbContext, HttpContext http)=>
+    {
+        try
+        {
+            // vars locals 
+                string? token = http.Request.Headers["Authorization"].ToString()?.Replace("Bearer ", "");            
+                var tokenHandler = new JwtSecurityTokenHandler();
+                // Leer los datos del formulario
+                    var formCollection = await http.Request.ReadFormAsync();
+                    string? Password = formCollection["password"];
+                    string? NewPassword = formCollection["newpassword"];
+            // Verificar el token
+                var jwtToken = tokenHandler.ReadJwtToken(token);
+                var jsonPayload = jwtToken.Payload.SerializeToJson();
+                // --
+            // Puedes deserializar el objeto JSON en un diccionario o en una clase personalizada
+                var payloadDictionary = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jsonPayload);
+
+            // Acceder a los valores del token
+                string? email = payloadDictionary?["email"].ToString();                
+            // Comprobar si el token es válido
+                if (jwtToken.ValidTo < DateTime.UtcNow)
+                {
+                    throw new Exception("El token ha expirado");
+                }
+                // --   
+            // Comprobar si el usuario existe en la base de datos
+                var user = dbContext?.Users?.FirstOrDefault(x => x.Email == email);
+                if (user == null)
+                {
+                        http.Response.StatusCode = StatusCodes.Status409Conflict;
+                        await http.Response.WriteAsync($"Inserte un usuario válido");
+                        return;
+                }
+                // --
+            // Comprobar si la contraseña es correcta
+                bool passwordMatches = BCryptNet.Verify(Password, user.Password);
+                if (passwordMatches)
+                {
+                            // Cambiar la contraseña
+                                user.Password = BCryptNet.HashPassword(NewPassword);
+                                dbContext?.SaveChanges();
+                            // --
+                            // Devolver una respuesta exitosa
+                                await Results.Ok($"La contraseña se ha cambiado correctamente").ExecuteAsync(http);
+                                return;
+                            // --
+                } else 
+                {
+                        // Devolver un error de servidor si ocurre un error
+                                await Results.BadRequest("La contraseña antigua no es correcta").ExecuteAsync(http);
+                                return;
+                            // --
+                }
+        }
+        catch (System.Exception e)
+        {
+            // Devolver un error de servidor si ocurre un error
+                        await Results.BadRequest(e.Message).ExecuteAsync(http);
+                        return;
+                    // --
+        }
     
     });
 // Ejecutar la aplicación
