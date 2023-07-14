@@ -5,3 +5,4 @@ bin
 examples.cs
 data
 appsettings.json
+appsettings.Development.json

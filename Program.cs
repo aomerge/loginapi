@@ -24,12 +24,16 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 
 // crate a new project
-var builder = WebApplication.CreateBuilder(args);
-
+    var builder = WebApplication.CreateBuilder(args);
+    
+    IConfiguration Configuration = new ConfigurationBuilder()
+        .SetBasePath(Directory.GetCurrentDirectory())
+        .AddJsonFile("appsettings.json")
+        .Build();
 // Configurar la conexión a la base de datos MariaDB
-    var connectionString = "Server=localhost;Port=3306;Database=mydatabase;Uid=myuser;Pwd=mypassword;";
+    var apiKey = Configuration.GetConnectionString("MySqlConnection");
     builder.Services.AddDbContext<modelContext>(options =>
-        options.UseMySql(connectionString, new MySqlServerVersion(new Version(10, 5, 12)))
+        options.UseMySql(apiKey, new MySqlServerVersion(new Version(10, 5, 12)))
             .EnableSensitiveDataLogging() // Habilitar registros detallados
             .LogTo(Console.WriteLine)); // Agregar registro de mensajes a la consola
 
