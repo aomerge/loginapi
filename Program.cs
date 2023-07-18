@@ -38,13 +38,8 @@ using Newtonsoft.Json;
             .LogTo(Console.WriteLine)); // Agregar registro de mensajes a la consola
 
 // Configurar la clave secreta para firmar y validar los tokens
-    var key = new byte[]
-    {
-        0x9F, 0x8D, 0x7E, 0x4A, 0x56, 0x32, 0xB9, 0x1C,
-        0x3F, 0x85, 0x2D, 0x7B, 0xE1, 0x90, 0xC4, 0x6F,
-        0x21, 0x8E, 0xF7, 0x53, 0x06, 0x9A, 0x71, 0xB8,
-        0x2C, 0x49, 0xD3, 0x5E, 0x76, 0xA2, 0x1F, 0x5D
-    };
+    string? keyJwt = Configuration.GetValue<string>("Jwt:Key");
+    Byte[] key =  Convert.FromBase64String(keyJwt);
 
 // Agregar el servicio de autenticación
     builder.Services.AddAuthentication(options =>
@@ -67,26 +62,8 @@ using Newtonsoft.Json;
 
 // Agregar el servicio de autorización
     builder.Services.AddAuthorization();
-
 // Configurar el servicio de CORS
     var app = builder.Build();
-    // migaration
-    /* using (var scope = app.Services.CreateScope())
-    {
-        var services = scope.ServiceProvider;
-        var dbContext = services.GetRequiredService<modelContext>();
-
-        try
-        {
-            // Aplicar migraciones y crear las tablas en la base de datos si no existen
-            dbContext.Database.Migrate();
-            Console.WriteLine("Migraciones aplicadas y tablas creadas correctamente.");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error al aplicar migraciones y crear las tablas: {ex.Message}");
-        }
-    } */
 
     app.UseAuthentication();
     app.UseAuthorization();
@@ -150,8 +127,8 @@ using Newtonsoft.Json;
                         dbContext?.Users?.Add(user);
                         dbContext?.SaveChanges();   
                     // guardamos los datos de la verificacion en la base de datos y interamos el user_id                                         
-                        var userId = dbContext?.Users?.FirstOrDefault(x => x.Email == _Email);
-                        int user_id = userId.Id_user;
+                        User? userId = dbContext?.Users.FirstOrDefault(x => x.Email == _Email);
+                        int? user_id = userId.Id_user;
                         VerificationUser verification = new VerificationUser
                         {
                             UserId = user_id,
@@ -161,10 +138,10 @@ using Newtonsoft.Json;
                         dbContext?.SaveChanges();   
 
                     // Generar un enlace de verificación único
-                        var linkGenerator = new VerificationLinkGenerator();
+                        var linkGenerator = new VerificationLinkGenerator(Configuration);
                         string verificationLink = linkGenerator.GenerateVerificationLink(_Name, _Email, _User_handle, hash );
                     // Enviar el correo electrónico de verificación
-                        var emailService = new EmailService();
+                        var emailService = new EmailService(Configuration);
                         emailService.SendVerificationEmail(_Email, verificationLink);
                     // --
                 }
@@ -257,16 +234,16 @@ using Newtonsoft.Json;
                 if (user == null)
                 {
                         http.Response.StatusCode = StatusCodes.Status409Conflict;
-                        await http.Response.WriteAsync($"El usuario no existe");
+                        await http.Response.WriteAsync($"El usuario no existe.");
                         return;
                 }
                 // --
             // Generar un enlace de verificación único
-                var linkGenerator = new VerificationLinkGenerator();
+                var linkGenerator = new VerificationLinkGenerator(Configuration);
                 string verificationLink = linkGenerator.GenerateVerificationLink(user.Username, user.Email, user.user_handle, user.Password );
             // Enviar el correo electrónico de verificación
-                var emailService = new EmailService();
-                emailService.SendVerificationEmail(user.Email, verificationLink);
+                var emailService = new EmailService(Configuration);
+                emailService.SendVerificationEmail (user.Email, verificationLink);
             // --
             // Devolver una respuesta exitosa
                 await Results.Ok($"Enviamos un correo electrónico de verificación a su dirección de correo electrónico. Por favor, verifique su cuenta para iniciar sesión.").ExecuteAsync(http);
@@ -438,15 +415,15 @@ using Newtonsoft.Json;
                 }
                 // --
             // Generar un enlace de recuperación de contraseña único
-                var linkGenerator = new VerificationLinkGenerator();
+                var linkGenerator = new VerificationLinkGenerator(Configuration);
                 string verificationLink = linkGenerator.GenerateVerificationLink(user.Username, user.Email, user.user_handle, user.Password );
             // --
             // Enviar el correo electrónico de verificación
-                        var emailService = new EmailService();
+                        var emailService = new EmailService(Configuration);
                         emailService.SendVerificationEmail(user.Email, verificationLink);
                     // --
             // Devolver una respuesta exitosa
-                await Results.Ok($"Enviamos un correo electrónico de recuperación de contraseña a su dirección de correo electrónico. Por favor, verifique su cuenta para iniciar sesión.").ExecuteAsync(http);
+                await Results.Ok($"Enviamos un correo electrónico de recuperación de contraseña a su dirección de correo electrónico.").ExecuteAsync(http);
                 // --
         }
         catch (Exception e)

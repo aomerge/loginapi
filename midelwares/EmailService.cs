@@ -5,16 +5,27 @@ using System.Net.Mail;
 // Clase para enviar correos electrónicos
     public class EmailService
     {
+        private  IConfiguration _configuration;
+        // Constructor
+            public EmailService( IConfiguration configuration )
+            {
+                _configuration = configuration;
+            }
+
         // Método para enviar un correo electrónico de verificación
             public void SendVerificationEmail(string recipientEmail, string? verificationLink)
             {
+                string? Email = _configuration.GetValue<string>("ethereal:Email");
+                string? Pass = _configuration.GetValue<string>("ethereal:Pass");
+                string? SMTP = _configuration.GetValue<string>("ethereal:SMTP");
+                int? Port = _configuration.GetValue<int>("ethereal:Port");
                 // Configurar la información del remitente y el destinatario
-                    string? senderEmail = "sterling48@ethereal.email";
-                    string? senderPassword = "dJUPA6sZzKbwd4sKcK";
+                    string? senderEmail = Email;
+                    string? senderPassword = Pass;
                     string? emailSubject = "Verificación de correo electrónico";
                     string? emailBody = $"Por favor, haga clic en el siguiente enlace para verificar su correo electrónico: {verificationLink}";
                 // Configurar el cliente SMTP
-                    SmtpClient smtpClient = new SmtpClient("smtp.ethereal.email", 587 );
+                    SmtpClient smtpClient = new SmtpClient(SMTP, (int)Port );
                     smtpClient.UseDefaultCredentials = false;
                     smtpClient.Credentials = new NetworkCredential(senderEmail, senderPassword);
                     smtpClient.EnableSsl = true;

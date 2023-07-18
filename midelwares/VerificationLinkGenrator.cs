@@ -6,17 +6,19 @@ using Microsoft.IdentityModel.Tokens;
 
 public class VerificationLinkGenerator
 {
+  // creamos un constructor para poder usar la configuración de la aplicación
+    private readonly IConfiguration _configuration;
+
+    public VerificationLinkGenerator(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
   // creamos un motodo para generar el token
     public string GenerateToken( string Name, string Email, string UserHandler, string Password )
     {
-        // generar el token con el nombre, el email, el user_handler y la contraseña
-        var key = new byte[]
-        {
-            0x9F, 0x8D, 0x7E, 0x4A, 0x56, 0x32, 0xB9, 0x1C,
-            0x3F, 0x85, 0x2D, 0x7B, 0xE1, 0x90, 0xC4, 0x6F,
-            0x21, 0x8E, 0xF7, 0x53, 0x06, 0x9A, 0x71, 0xB8,
-            0x2C, 0x49, 0xD3, 0x5E, 0x76, 0xA2, 0x1F, 0x5D
-        };
+      // generar el token con el nombre, el email, el user_handler y la contraseña
+          string? keyJwt = _configuration.GetValue<string>("Jwt:Key");
+          Byte[] key =  Convert.FromBase64String(keyJwt);
 
         var tokenHandler = new JwtSecurityTokenHandler();
         var tokenDescriptor = new SecurityTokenDescriptor

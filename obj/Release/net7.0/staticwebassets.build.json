@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "ESKCzri6d6hGaA39LBv7NYj45BU4F5lGXeSHHAPDoCU=",
+  "Source": "loginapi",
+  "BasePath": "_content/loginapi",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
